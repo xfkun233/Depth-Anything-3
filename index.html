@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Depth Anything 3 控制台 (自动随机名)</title>
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --card-bg: #16213e;
+            --text-main: #e8eaed;
+            --accent: #00d4ff;
+            --success: #00ffcc;
+            --error: #ff4d4d;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(0, 212, 255, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--accent);
+            margin-bottom: 30px;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #a0a0a0;
+        }
+
+        input[type="text"],
+        select,
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        input[type="file"]::file-selector-button {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background: #444;
+        }
+
+        input:focus,
+        select:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #0066ff, #00d4ff);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 102, 255, 0.4);
+        }
+
+        button:disabled {
+            background: #444;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        #status-area {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--success);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .log-text {
+            font-family: monospace;
+            font-size: 14px;
+            color: #bbb;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .result-links {
+            margin-top: 20px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .btn-download {
+            display: block;
+            text-align: center;
+            padding: 12px;
+            background: rgba(0, 255, 204, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        .btn-download:hover {
+            background: rgba(0, 255, 204, 0.2);
+        }
+
+        .preview-img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 15px;
+            border: 1px solid #444;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>🚀 DA3 模型生成器</h1>
+
+        <div class="form-group">
+            <label>🖼️ 选择图片</label>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <div class="form-group">
+            <label>📂 任务名称前缀 (会自动追加随机ID)</label>
+            <input type="text" id="taskBaseName" value="task">
+            <small style="color:#666">例如输入 "task"，实际生成目录可能是 "task_a1b2c3"</small>
+        </div>
+
+        <div class="form-group">
+            <label>⚙️ 处理分辨率</label>
+            <select id="resolution">
+                <option value="384">384 (极速)</option>
+                <option value="504" selected>504 (平衡)</option>
+                <option value="756">756 (精细)</option>
+                <option value="1008">1008 (超清)</option>
+            </select>
+        </div>
+
+        <button type="button" id="submitBtn" onclick="submitTask()">开始生成 3D 模型</button>
+
+        <div id="status-area">
+            <h3 id="status-title" style="margin-top:0">正在处理...</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+            <div class="log-text" id="logText">准备就绪</div>
+
+            <div id="results" style="display:none;">
+                <div class="result-links">
+                    <a href="#" target="_blank" class="btn-download" id="linkGlb">📦 下载 3D 模型 (.glb)</a>
+                    <a href="#" target="_blank" class="btn-download" id="linkDepth">🗺️ 查看深度图 (.jpg)</a>
+                </div>
+                <img src="" id="previewDepth" class="preview-img" alt="深度图预览">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:8008";
+
+        // 生成随机ID的辅助函数 (6位 字母+数字)
+        function generateRandomId () {
+            return Math.random().toString(36).substring(2, 8);
+        }
+
+        async function submitTask () {
+            const fileInput = document.getElementById('fileInput');
+            const taskBaseName = document.getElementById('taskBaseName').value.trim() || "task";
+            const resolution = parseInt(document.getElementById('resolution').value);
+            const btn = document.getElementById('submitBtn');
+            const statusArea = document.getElementById('status-area');
+
+            if (fileInput.files.length === 0) {
+                alert("请先选择一张图片！");
+                return;
+            }
+
+            // === 关键修改：生成带随机后缀的任务名 ===
+            const randomId = generateRandomId();
+            const finalTaskName = `${taskBaseName}_${randomId}`;
+            // ===================================
+
+            btn.disabled = true;
+            btn.innerText = "正在上传图片...";
+            statusArea.style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('progressBar').style.width = '5%';
+            document.getElementById('status-title').innerText = "正在处理...";
+            document.getElementById('status-title').style.color = "var(--text-main)";
+
+            updateLog(`正在连接服务器...\n准备创建任务: ${finalTaskName}`);
+
+            try {
+                // 1. 上传图片
+                const formData = new FormData();
+                formData.append("file", fileInput.files[0]);
+
+                updateLog("正在上传图片到服务器...");
+                const uploadResp = await fetch(`${API_BASE}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResp.ok) throw new Error(`上传失败: ${uploadResp.status}`);
+
+                const uploadData = await uploadResp.json();
+                const serverPath = uploadData.path;
+
+                updateLog(`图片上传成功，正在提交推理任务...`);
+                document.getElementById('progressBar').style.width = '10%';
+                btn.innerText = "正在生成...";
+
+                // 2. 提交任务 (使用 finalTaskName)
+                const payload = {
+                    "image_paths": [serverPath],
+                    "export_dir": `results_gallery/${finalTaskName}`, // 使用新名字
+                    "export_format": "glb-mini_npz-depth_vis",
+                    "process_res": resolution
+                };
+
+                const resp = await fetch(`${API_BASE}/inference`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!resp.ok) throw new Error(`提交任务失败: ${await resp.text()}`);
+
+                const data = await resp.json();
+                const taskId = data.task_id;
+                updateLog(`✅ 任务已创建: ${finalTaskName}\nID: ${taskId.substring(0, 8)}... \n正在排队处理...`);
+                // 3. 轮询
+                pollStatus(taskId, finalTaskName);
+            } catch (e) {
+                console.error(e);
+                showError(e.message);
+                btn.disabled = false;
+                btn.innerText = "重试";
+            }
+        }
+
+        async function pollStatus (taskId, taskName) {
+            const logEl = document.getElementById('logText');
+            const barEl = document.getElementById('progressBar');
+            const titleEl = document.getElementById('status-title');
+            const btn = document.getElementById('submitBtn');
+
+            const interval = setInterval(async () => {
+                try {
+                    const resp = await fetch(`${API_BASE}/task/${taskId}`);
+                    if (!resp.ok) return;
+
+                    const info = await resp.json();
+                    const rawProgress = info.progress || 0;
+                    const displayProgress = 10 + (rawProgress * 90);
+                    barEl.style.width = displayProgress + "%";
+
+                    logEl.innerText = `任务: ${taskName}\n[${info.status.toUpperCase()}] ${info.message}`;
+
+                    if (info.status === 'completed') {
+                        clearInterval(interval);
+                        titleEl.innerText = "🎉 处理完成！";
+                        titleEl.style.color = "var(--success)";
+                        barEl.style.width = "100%";
+                        showResults(taskName);
+
+                        btn.disabled = false;
+                        btn.innerText = "开始新的生成";
+                    }
+                    else if (info.status === 'failed') {
+                        clearInterval(interval);
+                        showError(info.message);
+                        btn.disabled = false;
+                        btn.innerText = "重试";
+                    }
+
+                } catch (e) {
+                    console.error("轮询错误", e);
+                }
+            }, 1000);
+        }
+
+        function showResults (taskName) {
+            const resultDiv = document.getElementById('results');
+            const linkGlb = document.getElementById('linkGlb');
+            const linkDepth = document.getElementById('linkDepth');
+            const imgPreview = document.getElementById('previewDepth');
+
+            const glbUrl = `${API_BASE}/gallery/${taskName}/scene.glb`;
+            const depthUrl = `${API_BASE}/gallery/${taskName}/depth_vis/0000.jpg`;
+
+            linkGlb.href = glbUrl;
+            linkDepth.href = depthUrl;
+
+            imgPreview.src = `${depthUrl}?t=${new Date().getTime()}`;
+            imgPreview.style.display = 'block';
+            imgPreview.onerror = () => { imgPreview.style.display = 'none'; };
+
+            resultDiv.style.display = 'block';
+        }
+
+        function updateLog (msg) {
+            document.getElementById('logText').innerText = msg;
+        }
+
+        function showError (msg) {
+            document.getElementById('status-title').innerText = "❌ 发生错误";
+            document.getElementById('status-title').style.color = "var(--error)";
+            document.getElementById('logText').innerText = msg;
+            document.getElementById('progressBar').style.background = "var(--error)";
+        }
+    </script>
+
+</body>
+
+</html>

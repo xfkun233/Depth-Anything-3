@@ -22,12 +22,14 @@ import os
 import posixpath
 import time
 import uuid
+import shutil
+from fastapi import UploadFile, File
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 import numpy as np
-
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
@@ -40,6 +42,12 @@ from ..utils.memory import (
     check_memory_availability,
     estimate_memory_requirement,
 )
+import torch
+
+# 获取 CPU 核心数，直接拉满
+cpu_cores = os.cpu_count()
+torch.set_num_threads(cpu_cores)
+print(f"🔥 CPU Optimization: Threads set to {cpu_cores}")
 
 
 class InferenceRequest(BaseModel):
@@ -232,6 +240,11 @@ def _run_inference_task(task_id: str):
         # Check memory availability
         estimated_memory = estimate_memory_requirement(num_images, request.process_res)
         mem_available, mem_msg = check_memory_availability(estimated_memory)
+        if not torch.cuda.is_available() or _backend.device == "cpu":
+            mem_available = True
+            mem_msg = "CPU mode detected. Skipping GPU memory check."
+        else:
+            mem_available, mem_msg = check_memory_availability(estimated_memory)
         print(f"[{task_id}] {mem_msg}")
 
         if not mem_available:
@@ -566,7 +579,15 @@ def create_app(model_dir: str, device: str = "cuda", gallery_dir: Optional[str] 
         description="Model inference service for Depth Anything 3",
         version="1.0.0",
     )
-
+# === 添加 CORS 支持 ===
+    _app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # 允许所有来源
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+# ====================
     # Store gallery directory globally for use in routes
     _gallery_dir = gallery_dir
 
@@ -1174,6 +1195,20 @@ def create_app(model_dir: str, device: str = "cuda", gallery_dir: Optional[str] 
             status["gpu_memory"] = None
 
         return status
+
+    @_app.post("/upload")
+    async def upload_image(file: UploadFile = File(...)):
+        # 创建一个 uploads 文件夹专门存上传的图
+        upload_dir = "uploaded_images"
+        os.makedirs(upload_dir, exist_ok=True)
+    # 生成保存路径
+        file_path = os.path.join(upload_dir, file.filename)
+
+    # 把上传的文件写入硬盘
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        return {"path": os.path.abspath(file_path)}
 
     @_app.post("/inference", response_model=InferenceResponse)
     async def run_inference(request: InferenceRequest):

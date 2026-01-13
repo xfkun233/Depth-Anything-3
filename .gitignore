@@ -5,6 +5,9 @@ __pycache__/
 # Distribution / packaging
 workspace/
 build/
+checkpoints/
+uploaded_images/
+results_gallery/
 dist/
 *.egg-info/
 .gradio/

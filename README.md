@@ -131,6 +131,10 @@ mkdir -p $GALLERY_DIR
 
 # CLI auto mode with backend reuse
 da3 backend --model-dir ${MODEL_DIR} --gallery-dir ${GALLERY_DIR} # Cache model to gpu
+
+#for example
+da3 backend --model-dir ./checkpoints --device cpu --host 0.0.0.0 --port 8008 --gallery-dir ./results_gallery
+
 da3 auto assets/examples/SOH \
     --export-format glb \
     --export-dir ${GALLERY_DIR}/TEST_BACKEND/SOH \

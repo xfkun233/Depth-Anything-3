@@ -123,9 +123,20 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
             Dictionary containing model predictions
         """
         # Determine optimal autocast dtype
-        autocast_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        device_type = image.device.type
+        if device_type == "cpu":
+            # CPU 模式下，直接禁用 autocast，使用默认的 Float32
+            # 这样能跑满 AVX-512 指令集，占用率和速度都会起飞
+            autocast_enabled = False
+            autocast_dtype = torch.float32
+        else:
+            # 显卡模式保持原样
+            autocast_enabled = True
+            autocast_dtype = torch.bfloat16 if torch.cuda.is_available(
+            ) and torch.cuda.is_bf16_supported() else torch.float16
         with torch.no_grad():
-            with torch.autocast(device_type=image.device.type, dtype=autocast_dtype):
+            # 这里加个 enabled 参数
+            with torch.autocast(device_type=device_type, dtype=autocast_dtype, enabled=autocast_enabled):
                 return self.model(
                     image, extrinsics, intrinsics, export_feat_layers, infer_gs, use_ray_pose, ref_view_strategy
                 )
@@ -381,7 +392,8 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
             torch.cuda.synchronize(device)
         start_time = time.time()
         feat_layers = list(export_feat_layers) if export_feat_layers is not None else None
-        output = self.forward(imgs, ex_t, in_t, feat_layers, infer_gs, use_ray_pose, ref_view_strategy)
+        output = self.forward(imgs, ex_t, in_t, feat_layers, infer_gs,
+                              use_ray_pose, ref_view_strategy)
         if need_sync:
             torch.cuda.synchronize(device)
         end_time = time.time()
