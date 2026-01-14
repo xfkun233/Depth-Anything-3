@@ -206,6 +206,14 @@
             </select>
         </div>
 
+        <div class="form-group">
+            <label>🎨 深度图格式</label>
+            <select id="depthFormat">
+                <option value="depth_vis">彩色深度图 (含原图对比)</option>
+                <option value="depth_raw">黑白深度图 (纯深度)</option>
+            </select>
+        </div>
+
         <button type="button" id="submitBtn" onclick="submitTask()">开始生成 3D 模型</button>
 
         <div id="status-area">
@@ -237,6 +245,7 @@
             const fileInput = document.getElementById('fileInput');
             const taskBaseName = document.getElementById('taskBaseName').value.trim() || "task";
             const resolution = parseInt(document.getElementById('resolution').value);
+            const depthFormat = document.getElementById('depthFormat').value;
             const btn = document.getElementById('submitBtn');
             const statusArea = document.getElementById('status-area');
 
@@ -284,7 +293,7 @@
                 const payload = {
                     "image_paths": [serverPath],
                     "export_dir": `results_gallery/${finalTaskName}`, // 使用新名字
-                    "export_format": "glb-mini_npz-depth_vis",
+                    "export_format": `glb-mini_npz-${depthFormat}`,  // 根据用户选择的深度图格式
                     "process_res": resolution
                 };
 
@@ -300,7 +309,7 @@
                 const taskId = data.task_id;
                 updateLog(`✅ 任务已创建: ${finalTaskName}\nID: ${taskId.substring(0, 8)}... \n正在排队处理...`);
                 // 3. 轮询
-                pollStatus(taskId, finalTaskName);
+                pollStatus(taskId, finalTaskName, depthFormat);
             } catch (e) {
                 console.error(e);
                 showError(e.message);
@@ -309,7 +318,7 @@
             }
         }
 
-        async function pollStatus (taskId, taskName) {
+        async function pollStatus (taskId, taskName, depthFormat) {
             const logEl = document.getElementById('logText');
             const barEl = document.getElementById('progressBar');
             const titleEl = document.getElementById('status-title');
@@ -332,7 +341,7 @@
                         titleEl.innerText = "🎉 处理完成！";
                         titleEl.style.color = "var(--success)";
                         barEl.style.width = "100%";
-                        showResults(taskName);
+                        showResults(taskName, depthFormat);
 
                         btn.disabled = false;
                         btn.innerText = "开始新的生成";
@@ -350,17 +359,27 @@
             }, 1000);
         }
 
-        function showResults (taskName) {
+        function showResults (taskName, depthFormat) {
             const resultDiv = document.getElementById('results');
             const linkGlb = document.getElementById('linkGlb');
             const linkDepth = document.getElementById('linkDepth');
             const imgPreview = document.getElementById('previewDepth');
 
             const glbUrl = `${API_BASE}/gallery/${taskName}/scene.glb`;
-            const depthUrl = `${API_BASE}/gallery/${taskName}/depth_vis/0000.jpg`;
+            
+            // 根据格式选择不同的路径和文件扩展名
+            let depthUrl, depthExt;
+            if (depthFormat === 'depth_raw') {
+                depthUrl = `${API_BASE}/gallery/${taskName}/depth_raw/0000.png`;
+                depthExt = '.png';
+            } else {
+                depthUrl = `${API_BASE}/gallery/${taskName}/depth_vis/0000.jpg`;
+                depthExt = '.jpg';
+            }
 
             linkGlb.href = glbUrl;
             linkDepth.href = depthUrl;
+            linkDepth.textContent = `🗺️ 查看深度图 (${depthExt})`;
 
             imgPreview.src = `${depthUrl}?t=${new Date().getTime()}`;
             imgPreview.style.display = 'block';
